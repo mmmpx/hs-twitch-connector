@@ -44,8 +44,8 @@ type Connection = (Context, SockAddr)
 
 -- Misc
 
-alterState :: MonadState s m => (s -> (s, a)) -> m a
-alterState f = (f <$> get) >>= (\(s, x) -> put s >> return x)
+swapState :: MonadState s m => s -> m s
+swapState x = get >>= (\s -> put x >> return s)
 
 hoistState :: Monad m => State s a -> StateT s m a
 hoistState = state . runState
@@ -56,7 +56,7 @@ consume :: [ByteString] -> State Builder [BL.ByteString]
 consume [] = return []
 consume [x] = modify (\buf -> buf <> (byteString x)) >> return []
 consume (x:xs) = do
-    line <- alterState (\buf -> (mempty, toLazyByteString $ buf <> (byteString x)))
+    line <- toLazyByteString . (flip (<>) (byteString x)) <$> swapState mempty
     (return . (:) line) =<< consume xs
 
 feed :: ByteString -> State Builder [BL.ByteString]
