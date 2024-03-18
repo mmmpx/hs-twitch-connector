@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Twitch.IRC where
 
 import Control.Monad.State.Lazy
     ( MonadState(..)
@@ -72,26 +72,28 @@ loopLines c@(ctx, _) f = do
 
 authenticate :: Connection -> IO ()
 authenticate (ctx, _) = do
+    send ctx "CAP REQ :twitch.tv/commands twitch.tv/membership twitch.tv/tags\r\n"
     send ctx "NICK justinfan123\r\n"
     send ctx "PASS oauth:pass123\r\n"
 
 withTwitchIRC :: (Connection -> IO a) -> IO a
 withTwitchIRC f = do
-    params <- newDefaultClientParams ("irc.chat.twitch.tv", "")
+    params <- newDefaultClientParams ("irc.chat.twitch.tv", "6697")
     connect params "irc.chat.twitch.tv" "6697" f
 
 handleLine :: (BL.ByteString -> IO ()) -> Connection -> BL.ByteString -> IO ()
 handleLine f (ctx, _) x
     | x == "PING :tmi.twitch.tv" =
-        send ctx "PONG :tmi.twitch.tv\r\n"
-            >> f x
-            >> putStrLn "[PONG :tmi.twitch.tv]"
+           send ctx "PONG :tmi.twitch.tv\r\n"
+        >> f x
+        >> putStrLn "[i] PING :tmi.twitch.tv -> PONG :tmi.twitch.tv"
     | otherwise = f x
 
 -- Main
 
-main :: IO ()
-main = withTwitchIRC $ \c -> do
+runTwitchIRC :: (BL.ByteString -> IO ()) -> IO ()
+runTwitchIRC f = withTwitchIRC $ \c -> do
+    putStrLn "[i] Connected!"
     authenticate c
-    _ <- runMaybeT $ flip runStateT mempty $ loopLines c $ handleLine print
-    return ()
+    _ <- runMaybeT $ flip runStateT mempty $ loopLines c $ handleLine f
+    putStrLn "[e] *EOF*"
